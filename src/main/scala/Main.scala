@@ -1,5 +1,6 @@
-@main def hello: Unit = 
-  println("Hello world!")
-  println(msg)
+import com.github.tototoshi.csv._
 
-def msg = "I was compiled by Scala 3. :)"
+@main def hello: Unit = 
+  val reader = CSVReader.open("trades.csv")
+  println("Hello world!")
+  reader.close()
