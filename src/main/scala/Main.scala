@@ -39,7 +39,9 @@ type Transaction = Record {
 /** Given the current state, process a transaction and return the new state */
 def processTx(st: State, tx: Transaction): State =
   printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
-  st
+  tx.typ match
+    case TransactionType.sell => Record("sumSales" -> (st.sumSales + tx.vol)).asInstanceOf[State]
+    case TransactionType.buy => st
 
 /** Main program */
 @main def main: Unit = 
