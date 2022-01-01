@@ -1,7 +1,7 @@
 import com.github.tototoshi.csv._
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.Temporal
+import java.time.format.{DateTimeFormatter,DateTimeFormatterBuilder}
+import java.time.temporal.{ChronoField,Temporal}
 
 /** Record type according to https://docs.scala-lang.org/scala3/book/types-structural.html */
 class Record(elems: (String, Any)*) extends Selectable:
@@ -10,8 +10,8 @@ class Record(elems: (String, Any)*) extends Selectable:
 
 /** State of gains and taxation */
 type State = Record {
-  val currency: String
-  val lastPrice: BigDecimal
+  // val currency: String
+  val sumSales: BigDecimal
 }
 
 /** Types of transactions */
@@ -38,17 +38,22 @@ type Transaction = Record {
 
 /** Given the current state, process a transaction and return the new state */
 def processTx(st: State, tx: Transaction): State =
+  printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
   st
 
 /** Main program */
 @main def main: Unit = 
   // Open CSV export file for reading
   val reader = CSVReader.open("trades.csv")
-  // TODO initialize zero State
+  // initialize zero State
+  val st = Record("sumSales" -> BigDecimal(0)).asInstanceOf[State]
   // initialize date/time formatter
-  val df = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSS")
+  val df = DateTimeFormatterBuilder()
+    .appendPattern("uuuu-MM-dd HH:mm:ss")
+    .appendFraction(ChronoField.NANO_OF_SECOND, 3, 4, true)
+    .toFormatter()
   // read all rows from the CSV
-  val it = reader.iteratorWithHeaders
+  val finalSt = reader.iteratorWithHeaders
   // parse one CSV record into a Transaction
     .map(
       tx =>
@@ -61,7 +66,6 @@ def processTx(st: State, tx: Transaction): State =
           "fee" -> BigDecimal(tx("fee")),
           "vol" -> BigDecimal(tx("vol"))
         ).asInstanceOf[Transaction])
-  // TODO foldLeft processTx over the collection
-  val tx = it.next
-  printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
+    .foldLeft(st)(processTx)
+  printf("%s\n", finalSt.sumSales)
   reader.close()
