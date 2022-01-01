@@ -1,6 +1,7 @@
 import com.github.tototoshi.csv._
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.Temporal
 
 // https://docs.scala-lang.org/scala3/book/types-structural.html
 class Record(elems: (String, Any)*) extends Selectable:
@@ -19,7 +20,7 @@ type Transaction = Record {
   /** part of "pair" */
   val currency: String
   /** "time" */
-  val time: LocalDateTime
+  val time: Temporal
   /** "type" */
   val typ: String // TODO TransactionType.Value
   /** "price" */
