@@ -10,8 +10,15 @@ class Record(elems: (String, Any)*) extends Selectable:
 
 /** State of gains and taxation */
 type State = Record {
-  // val currency: String
   val assets: Map[Currency, BigDecimal]
+  /* TODO actually, for each currency, maintain a List of each _purchase_, including:
+   * * the currency
+   * * the amount purchased
+   * * the amount still available (taking into account sales)
+   * * the cost paid
+   * * the fee paid
+   * * the date/time of purchase
+   */
   val sumFees: BigDecimal
 }
 
@@ -62,9 +69,26 @@ def processTx(st: State, tx: Transaction): State =
       if (st.assets.contains(tx.currency))
         st.assets + 
           (tx.currency -> (st.assets(tx.currency) + tx.typ.sign * tx.vol))
+        /* TODO add a new data structure for each purchase, as documented above for State.assets – run `tx.typ match` first */
+        /* TODO implement FIFO algorithm for selling:
+         *
+         * while vol > 0
+         *   reduce volume of first (list head) purchase of currency
+         *   determine cost of purchasing that amount (proportionate if > 0 remains) (*)
+         *   determine (proportionate) fee of purchasing that amount (*)
+         *   continue with next purchase of same currency
+         *
+         * gain = sumSold - sumPurchaseCost
+         *
+         * overallFee = sumPurchaseFee + sumSaleFee
+         *
+         * taxableGain = gain - overallFee
+         * (*) for taxation, only take into account purchases with a holding period of <= a year
+         */
       else
         tx.typ match
           case TransactionType.buy => st.assets + (tx.currency -> tx.vol)
+          /* TODO actually construct a more complex purchase data structure, as documented above for State.assets */
           case TransactionType.sell => throw TransactionException("trying to sell an asset of which we don't have any")
       ),
     "sumFees" -> (st.sumFees + tx.fee))
