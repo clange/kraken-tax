@@ -43,6 +43,18 @@ def processTx(st: State, tx: Transaction): State =
     case TransactionType.sell => Record("sumSales" -> (st.sumSales + tx.vol)).asInstanceOf[State]
     case TransactionType.buy => st
 
+/** Old-style currency pair, e.g., XETHZEUR */
+val currencyREXZ = """X(\p{Lu}+)ZEUR""".r
+/** Currency pair, e.g., DOTEUR */
+val currencyRE = """(\p{Lu}+)EUR""".r
+
+/** Extracts the crypto currency out of the given "pair" string.
+ * We currently assume that always the same fiat currency is involved (hard-coded to EUR) */
+def extractCryptoCurrency(pair: String): String =
+  pair match
+    case currencyREXZ(currency) => currency
+    case currencyRE(currency) => currency
+
 /** Main program */
 @main def main: Unit = 
   // Open CSV export file for reading
@@ -60,7 +72,7 @@ def processTx(st: State, tx: Transaction): State =
     .map(
       tx =>
         Record(
-          "currency" -> tx("pair"),
+          "currency" -> extractCryptoCurrency(tx("pair")),
           "time" -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone
           "typ" -> TransactionType.valueOf(tx("type")),
           "price" -> BigDecimal(tx("price")),
