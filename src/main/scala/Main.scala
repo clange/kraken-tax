@@ -1,5 +1,6 @@
 import com.github.tototoshi.csv._
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 // https://docs.scala-lang.org/scala3/book/types-structural.html
 class Record(elems: (String, Any)*) extends Selectable:
@@ -18,7 +19,7 @@ type Transaction = Record {
   /** part of "pair" */
   val currency: String
   /** "time" */
-  val time: String // TODO LocalDateTime
+  val time: LocalDateTime
   /** "type" */
   val typ: String // TODO TransactionType.Value
   /** "price" */
@@ -37,12 +38,12 @@ def processTx(st: State, tx: Transaction): State =
 @main def main: Unit = 
   // TODO initialize zero State
   val reader = CSVReader.open("trades.csv")
-  // Map(Foo -> a, Bar -> b, Baz -> c)
+  val df = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSS")
   val it = reader.iteratorWithHeaders.map(
     tx =>
       Record( // TODO parse dates and numbers
         "currency" -> tx("pair"),
-        "time" -> tx("time"),
+        "time" -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone
         "typ" -> tx("type"),
         "price" -> tx("price"),
         "cost" -> tx("cost"),
@@ -51,5 +52,5 @@ def processTx(st: State, tx: Transaction): State =
     ).asInstanceOf[Transaction])
   // TODO foldLeft processTx over the collection
   val tx = it.next
-  printf("%s: %s\n", tx.currency, tx.price)
+  printf("%s at %s: %s\n", tx.currency, tx.time, tx.price)
   reader.close()
