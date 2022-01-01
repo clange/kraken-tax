@@ -1,4 +1,4 @@
-[How to interpret ledger history fields](https://support.kraken.com/hc/en-us/articles/360001169383-How-to-interpret-Ledger-history-fields)
+[How to interpret trades history fields](https://support.kraken.com/hc/en-us/articles/360001184886-How-to-interpret-Trades-history-fields)
 
 Assumption: history has been exported with at least the following fields:
 * txid
