@@ -11,17 +11,24 @@ class Record(elems: (String, Any)*) extends Selectable:
 /** State of gains and taxation */
 type State = Record {
   // val currency: String
+  val assets: Map[Currency, BigDecimal]
   val sumFees: BigDecimal
 }
 
 /** Explicitly typed wrapper for a currency name */
-class Currency(name: String):
+case class Currency(name: String):
   override def toString(): String =
     name
 
 /** Types of transactions */
 enum TransactionType:
   case buy, sell
+
+  /** Buying has a positive sign in computations, selling has a negative sign */
+  def sign =
+    this match
+      case TransactionType.buy => 1
+      case TransactionType.sell => -1
 
 /** All relevant information about a transaction */
 type Transaction = Record {
@@ -41,12 +48,27 @@ type Transaction = Record {
   val vol: BigDecimal
 }
 
+/** Custom class for exceptions that occur during transaction processing */
+case class TransactionException(
+  private val message: String = "", 
+  private val cause: Throwable = None.orNull)
+extends Exception(message, cause)
+
 /** Given the current state, process a transaction and return the new state */
 def processTx(st: State, tx: Transaction): State =
-  printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
-  tx.typ match
-    case TransactionType.sell => Record("sumFees" -> (st.sumFees + tx.fee)).asInstanceOf[State]
-    case TransactionType.buy => st
+  // printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
+  Record(
+    "assets" -> (
+      if (st.assets.contains(tx.currency))
+        st.assets + 
+          (tx.currency -> (st.assets(tx.currency) + tx.typ.sign * tx.vol))
+      else
+        tx.typ match
+          case TransactionType.buy => st.assets + (tx.currency -> tx.vol)
+          case TransactionType.sell => throw TransactionException("trying to sell an asset of which we don't have any")
+      ),
+    "sumFees" -> (st.sumFees + tx.fee))
+    .asInstanceOf[State]
 
 /** Old-style currency pair, e.g., XETHZEUR */
 val currencyREXZ = """X(\p{Lu}+)ZEUR""".r
@@ -65,7 +87,10 @@ def extractCryptoCurrency(pair: String): Currency =
   // Open CSV export file for reading
   val reader = CSVReader.open("trades.csv")
   // initialize zero State
-  val st = Record("sumFees" -> BigDecimal(0)).asInstanceOf[State]
+  val st = Record(
+    "assets" -> Map.empty[Currency, BigDecimal],
+    "sumFees" -> BigDecimal(0))
+    .asInstanceOf[State]
   // initialize date/time formatter
   val df = DateTimeFormatterBuilder()
     .appendPattern("uuuu-MM-dd HH:mm:ss")
@@ -86,5 +111,6 @@ def extractCryptoCurrency(pair: String): Currency =
           "vol" -> BigDecimal(tx("vol"))
         ).asInstanceOf[Transaction])
     .foldLeft(st)(processTx)
-  printf("%s\n", finalSt.sumFees)
+  println(finalSt.assets)
+  printf("Sum of fees: %s\n", finalSt.sumFees)
   reader.close()
