@@ -14,6 +14,11 @@ type State = Record {
   val sumFees: BigDecimal
 }
 
+/** Explicitly typed wrapper for a currency name */
+class Currency(name: String):
+  override def toString(): String =
+    name
+
 /** Types of transactions */
 enum TransactionType:
   case buy, sell
@@ -21,7 +26,7 @@ enum TransactionType:
 /** All relevant information about a transaction */
 type Transaction = Record {
   /** part of "pair" */
-  val currency: String
+  val currency: Currency
   /** "time" */
   val time: Temporal
   /** "type" */
@@ -50,10 +55,10 @@ val currencyRE = """(\p{Lu}+)EUR""".r
 
 /** Extracts the crypto currency out of the given "pair" string.
  * We currently assume that always the same fiat currency is involved (hard-coded to EUR) */
-def extractCryptoCurrency(pair: String): String =
+def extractCryptoCurrency(pair: String): Currency =
   pair match
-    case currencyREXZ(currency) => currency
-    case currencyRE(currency) => currency
+    case currencyREXZ(currency) => Currency(currency)
+    case currencyRE(currency) => Currency(currency)
 
 /** Main program */
 @main def main: Unit = 
