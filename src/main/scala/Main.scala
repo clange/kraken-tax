@@ -11,7 +11,7 @@ class Record(elems: (String, Any)*) extends Selectable:
 /** State of gains and taxation */
 type State = Record {
   // val currency: String
-  val sumSales: BigDecimal
+  val sumFees: BigDecimal
 }
 
 /** Types of transactions */
@@ -40,7 +40,7 @@ type Transaction = Record {
 def processTx(st: State, tx: Transaction): State =
   printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
   tx.typ match
-    case TransactionType.sell => Record("sumSales" -> (st.sumSales + tx.vol)).asInstanceOf[State]
+    case TransactionType.sell => Record("sumFees" -> (st.sumFees + tx.fee)).asInstanceOf[State]
     case TransactionType.buy => st
 
 /** Old-style currency pair, e.g., XETHZEUR */
@@ -60,7 +60,7 @@ def extractCryptoCurrency(pair: String): String =
   // Open CSV export file for reading
   val reader = CSVReader.open("trades.csv")
   // initialize zero State
-  val st = Record("sumSales" -> BigDecimal(0)).asInstanceOf[State]
+  val st = Record("sumFees" -> BigDecimal(0)).asInstanceOf[State]
   // initialize date/time formatter
   val df = DateTimeFormatterBuilder()
     .appendPattern("uuuu-MM-dd HH:mm:ss")
@@ -81,5 +81,5 @@ def extractCryptoCurrency(pair: String): String =
           "vol" -> BigDecimal(tx("vol"))
         ).asInstanceOf[Transaction])
     .foldLeft(st)(processTx)
-  printf("%s\n", finalSt.sumSales)
+  printf("%s\n", finalSt.sumFees)
   reader.close()
