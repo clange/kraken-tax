@@ -1,3 +1,15 @@
+[How to interpret ledger history fields](https://support.kraken.com/hc/en-us/articles/360001169383-How-to-interpret-Ledger-history-fields)
+
+Assumption: history has been exported with at least the following fields:
+* txid
+* pair
+* time
+* type
+* price
+* cost
+* fee
+* vol
+
 ## sbt project compiled with Scala 3
 
 ### Usage
