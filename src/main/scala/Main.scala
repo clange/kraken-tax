@@ -24,13 +24,13 @@ type Transaction = Record {
   /** "type" */
   val typ: String // TODO TransactionType.Value
   /** "price" */
-  val price: String // TODO BigDecimal
+  val price: BigDecimal
   /** "cost" */
-  val cost: String // TODO BigDecimal
+  val cost: BigDecimal
   /** "fee" */
-  val fee: String // TODO BigDecimal
+  val fee: BigDecimal
   /** "vol" */
-  val vol: String // TODO BigDecimal
+  val vol: BigDecimal
 }
 
 def processTx(st: State, tx: Transaction): State =
@@ -46,10 +46,10 @@ def processTx(st: State, tx: Transaction): State =
         "currency" -> tx("pair"),
         "time" -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone
         "typ" -> tx("type"),
-        "price" -> tx("price"),
-        "cost" -> tx("cost"),
-        "fee" -> tx("fee"),
-        "vol" -> tx("vol")
+        "price" -> BigDecimal(tx("price")),
+        "cost" -> BigDecimal(tx("cost")),
+        "fee" -> BigDecimal(tx("fee")),
+        "vol" -> BigDecimal(tx("vol"))
     ).asInstanceOf[Transaction])
   // TODO foldLeft processTx over the collection
   val tx = it.next
