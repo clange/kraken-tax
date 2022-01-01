@@ -13,8 +13,8 @@ type State = Record {
   val lastPrice: BigDecimal
 }
 
-object TransactionType extends Enumeration:
-  val buy, sell = Value
+enum TransactionType:
+  case buy, sell
 
 type Transaction = Record {
   /** part of "pair" */
@@ -22,7 +22,7 @@ type Transaction = Record {
   /** "time" */
   val time: Temporal
   /** "type" */
-  val typ: String // TODO TransactionType.Value
+  val typ: TransactionType
   /** "price" */
   val price: BigDecimal
   /** "cost" */
@@ -42,10 +42,10 @@ def processTx(st: State, tx: Transaction): State =
   val df = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSS")
   val it = reader.iteratorWithHeaders.map(
     tx =>
-      Record( // TODO parse dates and numbers
+      Record(
         "currency" -> tx("pair"),
         "time" -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone
-        "typ" -> tx("type"),
+        "typ" -> TransactionType.valueOf(tx("type")),
         "price" -> BigDecimal(tx("price")),
         "cost" -> BigDecimal(tx("cost")),
         "fee" -> BigDecimal(tx("fee")),
@@ -53,5 +53,5 @@ def processTx(st: State, tx: Transaction): State =
     ).asInstanceOf[Transaction])
   // TODO foldLeft processTx over the collection
   val tx = it.next
-  printf("%s at %s: %s\n", tx.currency, tx.time, tx.price)
+  printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
   reader.close()
