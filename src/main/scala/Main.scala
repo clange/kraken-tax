@@ -94,8 +94,8 @@ def processTx(st: State, tx: Transaction): State =
               st.assets(tx.currency)
                 + (tx.time -> Purchase(
                   amountPurchased = tx.vol,
-                  cost = tx.cost,
-                  fee = tx.fee))))
+                  cost            = tx.cost,
+                  fee             = tx.fee))))
         case TransactionType.sell =>
           if st.assets.contains(tx.currency) then
             st.assets
@@ -154,12 +154,12 @@ def extractCryptoCurrency(pair: String): Currency =
       tx =>
         Record(
           "currency" -> extractCryptoCurrency(tx("pair")),
-          "time" -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone to be precise w.r.t. tax years
-          "typ" -> TransactionType.valueOf(tx("type")),
-          "price" -> BigDecimal(tx("price")),
-          "cost" -> BigDecimal(tx("cost")),
-          "fee" -> BigDecimal(tx("fee")),
-          "vol" -> BigDecimal(tx("vol"))
+          "time"     -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone to be precise w.r.t. tax years
+          "typ"      -> TransactionType.valueOf(tx("type")),
+          "price"    -> BigDecimal(tx("price")),
+          "cost"     -> BigDecimal(tx("cost")),
+          "fee"      -> BigDecimal(tx("fee")),
+          "vol"      -> BigDecimal(tx("vol"))
         ).asInstanceOf[Transaction])
     .foldLeft(st)(processTx)
   println(finalSt.assets)
