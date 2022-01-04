@@ -4,6 +4,9 @@ import java.time.LocalDateTime
 import java.time.format.{DateTimeFormatter,DateTimeFormatterBuilder}
 import java.time.temporal.{ChronoField,Temporal}
 
+/** We currently assume that always the same fiat currency is involved (hard-coded to EUR) */
+val onlyFiatCurrency = "EUR"
+
 /** Record type according to https://docs.scala-lang.org/scala3/book/types-structural.html */
 class Record(elems: (String, Any)*) extends Selectable:
   private val fields = elems.toMap
@@ -118,12 +121,11 @@ def processTx(st: State, tx: Transaction): State =
     .asInstanceOf[State]
 
 /** Old-style currency pair, e.g., XETHZEUR */
-val currencyREXZ = """X(\p{Lu}+)ZEUR""".r
+val currencyREXZ = s"X(\\p{Lu}+)Z$onlyFiatCurrency".r
 /** Currency pair, e.g., DOTEUR */
-val currencyRE = """(\p{Lu}+)EUR""".r
+val currencyRE = s"(\\p{Lu}+)$onlyFiatCurrency".r
 
-/** Extracts the crypto currency out of the given "pair" string.
- * We currently assume that always the same fiat currency is involved (hard-coded to EUR) */
+/** Extracts the crypto currency out of the given "pair" string. */
 def extractCryptoCurrency(pair: String): Currency =
   pair match
     case currencyREXZ(currency) => Currency(currency)
