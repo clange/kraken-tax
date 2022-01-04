@@ -138,7 +138,7 @@ def extractCryptoCurrency(pair: String): Currency =
   // initialize zero State
   val st = Record(
     "assets" -> Map
-      .empty[Currency, Map[LocalDateTime, Purchase]]
+      .empty[Currency, Map[Temporal, Purchase]]
       .withDefaultValue(ListMap.empty[LocalDateTime, Purchase]),
     "sumFees" -> BigDecimal(0))
     .asInstanceOf[State]
