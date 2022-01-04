@@ -1,4 +1,5 @@
 import com.github.tototoshi.csv._
+import scala.collection.immutable.ListMap
 import java.time.LocalDateTime
 import java.time.format.{DateTimeFormatter,DateTimeFormatterBuilder}
 import java.time.temporal.{ChronoField,Temporal}
@@ -10,17 +11,33 @@ class Record(elems: (String, Any)*) extends Selectable:
 
 /** State of gains and taxation */
 type State = Record {
-  val assets: Map[Currency, BigDecimal]
-  /* TODO actually, for each currency, maintain a List of each _purchase_, including:
-   * * the currency
-   * * the amount purchased
-   * * the amount still available (taking into account sales)
-   * * the cost paid
-   * * the fee paid
-   * * the date/time of purchase
-   */
+  val assets: Map[Currency, Map[Temporal, Purchase]]
   val sumFees: BigDecimal
 }
+
+/** One purchase of an asset (and what's left of it) */
+class Purchase(
+  // TODO do we need to (redundantly) store currency and date here as well, or rather just in "state"?
+  /** the amount purchased */
+  amountPurchased: BigDecimal,
+  /** the amount still available (taking into account sales) */
+  amountLeft: BigDecimal,
+  /** the cost of purchase */
+  cost: BigDecimal,
+  /** the fee paid for purchasing */
+  fee: BigDecimal):
+  /** For a new purchase, the amount left is the same as the amount purchased. */
+  def this(amountPurchased: BigDecimal, cost: BigDecimal, fee: BigDecimal) =
+    this(amountPurchased, amountPurchased, cost, fee)
+
+  /** Only print the amount left if it is different from (i.e., lower than) the amount purchased. */
+  override def toString(): String =
+    val left =
+      if (amountLeft < amountPurchased) then
+        s" – $amountLeft left"
+      else
+        ""
+    s"$amountPurchased purchased for $onlyFiatCurrency $cost ($onlyFiatCurrency $fee fee)$left"
 
 /** Explicitly typed wrapper for a currency name */
 case class Currency(name: String):
@@ -66,30 +83,36 @@ def processTx(st: State, tx: Transaction): State =
   // printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
   Record(
     "assets" -> (
-      if (st.assets.contains(tx.currency))
-        st.assets + 
-          (tx.currency -> (st.assets(tx.currency) + tx.typ.sign * tx.vol))
-        /* TODO add a new data structure for each purchase, as documented above for State.assets – run `tx.typ match` first */
-        /* TODO implement FIFO algorithm for selling:
-         *
-         * while vol > 0
-         *   reduce volume of first (list head) purchase of currency
-         *   determine cost of purchasing that amount (proportionate if > 0 remains) (*)
-         *   determine (proportionate) fee of purchasing that amount (*)
-         *   continue with next purchase of same currency
-         *
-         * gain = sumSold - sumPurchaseCost
-         *
-         * overallFee = sumPurchaseFee + sumSaleFee
-         *
-         * taxableGain = gain - overallFee
-         * (*) for taxation, only take into account purchases with a holding period of <= a year
-         */
-      else
-        tx.typ match
-          case TransactionType.buy => st.assets + (tx.currency -> tx.vol)
-          /* TODO actually construct a more complex purchase data structure, as documented above for State.assets */
-          case TransactionType.sell => throw TransactionException("trying to sell an asset of which we don't have any")
+      tx.typ match
+        case TransactionType.buy =>
+          st.assets +
+            (tx.currency -> (
+              // the following default to the empty Map
+              st.assets(tx.currency)
+                + (tx.time -> Purchase(
+                  amountPurchased = tx.vol,
+                  cost = tx.cost,
+                  fee = tx.fee))))
+        case TransactionType.sell =>
+          if st.assets.contains(tx.currency) then
+            st.assets
+            /* FIXME implement FIFO algorithm for selling:
+             *
+             * while vol > 0
+             *   reduce volume of first (list head) purchase of currency
+             *   determine cost of purchasing that amount (proportionate if > 0 remains) (*)
+             *   determine (proportionate) fee of purchasing that amount (*)
+             *   continue with next purchase of same currency
+             *
+             * gain = sumSold - sumPurchaseCost
+             *
+             * overallFee = sumPurchaseFee + sumSaleFee
+             *
+             * taxableGain = gain - overallFee
+             * (*) for taxation, only take into account purchases with a holding period of <= a year
+             */
+          else
+            throw TransactionException("trying to sell an asset of which we don't have any")
       ),
     "sumFees" -> (st.sumFees + tx.fee))
     .asInstanceOf[State]
@@ -112,7 +135,9 @@ def extractCryptoCurrency(pair: String): Currency =
   val reader = CSVReader.open("trades.csv")
   // initialize zero State
   val st = Record(
-    "assets" -> Map.empty[Currency, BigDecimal],
+    "assets" -> Map
+      .empty[Currency, Map[LocalDateTime, Purchase]]
+      .withDefaultValue(ListMap.empty[LocalDateTime, Purchase]),
     "sumFees" -> BigDecimal(0))
     .asInstanceOf[State]
   // initialize date/time formatter
