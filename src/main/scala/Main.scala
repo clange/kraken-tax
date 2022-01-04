@@ -154,7 +154,7 @@ def extractCryptoCurrency(pair: String): Currency =
       tx =>
         Record(
           "currency" -> extractCryptoCurrency(tx("pair")),
-          "time" -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone
+          "time" -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone to be precise w.r.t. tax years
           "typ" -> TransactionType.valueOf(tx("type")),
           "price" -> BigDecimal(tx("price")),
           "cost" -> BigDecimal(tx("cost")),
