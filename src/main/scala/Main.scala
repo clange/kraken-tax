@@ -115,7 +115,7 @@ def processTx(st: State, tx: Transaction): State =
                 cost            = tx.cost,
                 fee             = tx.fee))
           case TransactionType.sell =>
-            if st.assets.contains(tx.currency) then
+            if !st.assets(tx.currency).isEmpty then
               // TODO implement not just the change to the assets, but also compute the tax
               sellFIFO(
                 purchases = st.assets(tx.currency),
