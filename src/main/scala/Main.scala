@@ -1,8 +1,8 @@
 import com.github.tototoshi.csv._
-import scala.collection.immutable.ListMap
 import java.time.LocalDateTime
 import java.time.format.{DateTimeFormatter,DateTimeFormatterBuilder}
 import java.time.temporal.{ChronoField,Temporal}
+import scala.collection.immutable.{ListMap,SeqMap}
 
 /** We currently assume that always the same fiat currency is involved (hard-coded to EUR) */
 val onlyFiatCurrency = "EUR"
@@ -14,7 +14,7 @@ class Record(elems: (String, Any)*) extends Selectable:
 
 /** State of gains and taxation */
 type State = Record {
-  val assets: Map[Currency, Map[Temporal, Purchase]]
+  val assets: Map[Currency, SeqMap[Temporal, Purchase]]
   val sumFees: BigDecimal
 }
 
@@ -81,42 +81,50 @@ case class TransactionException(
   private val cause: Throwable = None.orNull)
 extends Exception(message, cause)
 
+/** From the */
+def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, volume: BigDecimal, cost: BigDecimal): SeqMap[Temporal, Purchase] =
+  /* FIXME implement FIFO algorithm for selling:
+   *
+   * while vol > 0
+   *   reduce volume of first (list head) purchase of currency
+   *   determine cost of purchasing that amount (proportionate if > 0 remains) (*)
+   *   determine (proportionate) fee of purchasing that amount (*)
+   *   continue with next purchase of same currency
+   *
+   * gain = sumSold - sumPurchaseCost
+   *
+   * overallFee = sumPurchaseFee + sumSaleFee
+   *
+   * taxableGain = gain - overallFee
+   * (*) for taxation, only take into account purchases with a holding period of <= a year
+   */
+  purchases
+
 /** Given the current state, process a transaction and return the new state */
 def processTx(st: State, tx: Transaction): State =
   // printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
   Record(
-    "assets" -> (
-      tx.typ match
-        case TransactionType.buy =>
-          st.assets +
-            (tx.currency -> (
-              // the following default to the empty Map
-              st.assets(tx.currency)
-                + (tx.time -> Purchase(
-                  amountPurchased = tx.vol,
-                  cost            = tx.cost,
-                  fee             = tx.fee))))
-        case TransactionType.sell =>
-          if st.assets.contains(tx.currency) then
-            st.assets
-            /* FIXME implement FIFO algorithm for selling:
-             *
-             * while vol > 0
-             *   reduce volume of first (list head) purchase of currency
-             *   determine cost of purchasing that amount (proportionate if > 0 remains) (*)
-             *   determine (proportionate) fee of purchasing that amount (*)
-             *   continue with next purchase of same currency
-             *
-             * gain = sumSold - sumPurchaseCost
-             *
-             * overallFee = sumPurchaseFee + sumSaleFee
-             *
-             * taxableGain = gain - overallFee
-             * (*) for taxation, only take into account purchases with a holding period of <= a year
-             */
-          else
-            throw TransactionException("trying to sell an asset of which we don't have any")
-      ),
+    "assets" -> (st.assets +
+      (tx.currency ->
+        (tx.typ match
+          case TransactionType.buy =>
+            // the following default to the empty Map
+            st.assets(tx.currency)
+              + (tx.time -> Purchase(
+                amountPurchased = tx.vol,
+                cost            = tx.cost,
+                fee             = tx.fee))
+          case TransactionType.sell =>
+            if st.assets.contains(tx.currency) then
+              // TODO implement not just the change to the assets, but also compute the tax
+              sellFIFO(
+                purchases = st.assets(tx.currency),
+                time   = tx.time,
+                volume = tx.vol,
+                cost   = tx.cost)
+            else
+              throw TransactionException("trying to sell an asset of which we don't have any")
+      ))),
     "sumFees" -> (st.sumFees + tx.fee))
     .asInstanceOf[State]
 
@@ -138,7 +146,7 @@ def extractCryptoCurrency(pair: String): Currency =
   // initialize zero State
   val st = Record(
     "assets" -> Map
-      .empty[Currency, Map[Temporal, Purchase]]
+      .empty[Currency, SeqMap[Temporal, Purchase]]
       .withDefaultValue(ListMap.empty[LocalDateTime, Purchase]),
     "sumFees" -> BigDecimal(0))
     .asInstanceOf[State]
