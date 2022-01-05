@@ -166,37 +166,39 @@ def extractCryptoCurrency(pair: String): Currency =
     case currencyREXZ(currency) => Currency(currency)
     case currencyRE(currency) => Currency(currency)
 
+/** default date/time formatter */
+val dateTimeFormat = DateTimeFormatterBuilder()
+  .appendPattern("uuuu-MM-dd HH:mm:ss")
+  .appendFraction(ChronoField.NANO_OF_SECOND, 3, 4, true)
+  .toFormatter()
+
+/** initial state before processing any transactions */
+val zeroState = Record(
+  "assets" -> Map
+    .empty[Currency, SeqMap[Temporal, Purchase]]
+    .withDefaultValue(ListMap.empty[LocalDateTime, Purchase]),
+  "sumFees" -> BigDecimal(0))
+  .asInstanceOf[State]
+
 /** Main program */
 @main def main: Unit = 
   // Open CSV export file for reading
   val reader = CSVReader.open("trades.csv")
-  // initialize zero State
-  val st = Record(
-    "assets" -> Map
-      .empty[Currency, SeqMap[Temporal, Purchase]]
-      .withDefaultValue(ListMap.empty[LocalDateTime, Purchase]),
-    "sumFees" -> BigDecimal(0))
-    .asInstanceOf[State]
-  // initialize date/time formatter
-  val df = DateTimeFormatterBuilder()
-    .appendPattern("uuuu-MM-dd HH:mm:ss")
-    .appendFraction(ChronoField.NANO_OF_SECOND, 3, 4, true)
-    .toFormatter()
   // read all rows from the CSV
-  val finalSt = reader.iteratorWithHeaders
+  val finalState = reader.iteratorWithHeaders
   // parse one CSV record into a Transaction
     .map(
       tx =>
         Record(
           "currency" -> extractCryptoCurrency(tx("pair")),
-          "time"     -> LocalDateTime.parse(tx("time"), df), // TODO actually UTC, but should be converted to local timezone to be precise w.r.t. tax years
+          "time"     -> LocalDateTime.parse(tx("time"), dateTimeFormat), // TODO actually UTC, but should be converted to local timezone to be precise w.r.t. tax years
           "typ"      -> TransactionType.valueOf(tx("type")),
           "price"    -> BigDecimal(tx("price")),
           "cost"     -> BigDecimal(tx("cost")),
           "fee"      -> BigDecimal(tx("fee")),
           "vol"      -> BigDecimal(tx("vol"))
         ).asInstanceOf[Transaction])
-    .foldLeft(st)(processTx)
-  println(finalSt.assets)
-  printf("Sum of fees: %s\n", finalSt.sumFees)
+    .foldLeft(zeroState)(processTx)
+  println(finalState.assets)
+  printf("Sum of fees: %s\n", finalState.sumFees)
   reader.close()
