@@ -81,7 +81,7 @@ case class TransactionException(
   private val cause: Throwable = None.orNull)
 extends Exception(message, cause)
 
-/** From the */
+/** From the available purchases of an asset, execute a sale, starting with those purchased first. */
 def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, volume: BigDecimal, cost: BigDecimal): SeqMap[Temporal, Purchase] =
   /* FIXME implement FIFO algorithm for selling:
    *
