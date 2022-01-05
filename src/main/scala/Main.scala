@@ -36,7 +36,7 @@ class Purchase(
   /** Only print the amount left if it is different from (i.e., lower than) the amount purchased. */
   override def toString(): String =
     val left =
-      if (amountLeft < amountPurchased) then
+      if amountLeft < amountPurchased then
         s" – $amountLeft left"
       else
         ""
