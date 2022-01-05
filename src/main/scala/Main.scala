@@ -22,13 +22,13 @@ type State = Record {
 class Purchase(
   // TODO do we need to (redundantly) store currency and date here as well, or rather just in "state"?
   /** the amount purchased */
-  amountPurchased: BigDecimal,
+  val amountPurchased: BigDecimal,
   /** the amount still available (taking into account sales) */
-  amountLeft: BigDecimal,
+  val amountLeft: BigDecimal,
   /** the cost of purchase */
-  cost: BigDecimal,
+  val cost: BigDecimal,
   /** the fee paid for purchasing */
-  fee: BigDecimal):
+  val fee: BigDecimal):
   /** For a new purchase, the amount left is the same as the amount purchased. */
   def this(amountPurchased: BigDecimal, cost: BigDecimal, fee: BigDecimal) =
     this(amountPurchased, amountPurchased, cost, fee)
