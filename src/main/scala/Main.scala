@@ -62,7 +62,7 @@ type Transaction = Record {
   /** part of "pair" */
   val currency: Currency
   /** "time" */
-  val time: Temporal
+  val time: LocalDateTime
   /** "type" */
   val typ: TransactionType
   /** "price" */
@@ -81,8 +81,32 @@ case class TransactionException(
   private val cause: Throwable = None.orNull)
 extends Exception(message, cause)
 
-/** From the available purchases of an asset, execute a sale, starting with those purchased first. */
-def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, volume: BigDecimal, cost: BigDecimal): SeqMap[Temporal, Purchase] =
+/** Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset. */
+def sellFIFOStep(firstPurchaseTime: Temporal, firstPurchase: Purchase, nextPurchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal): SeqMap[Temporal, Purchase] =
+  val firstPurchaseAmountReduced = firstPurchase.amountLeft - volume
+  if firstPurchaseAmountReduced > 0 then
+    // if the first purchase has not been sold completely, just reduce its amount ...
+    ListMap(firstPurchaseTime -> Purchase(
+      firstPurchase.amountPurchased,
+      firstPurchaseAmountReduced,
+      firstPurchase.cost,
+      firstPurchase.fee))
+    // ... and leave the rest of the list unchanged.
+      ++ nextPurchases
+  else if firstPurchaseAmountReduced == 0 then
+    // if the first purchase has been sold exactly, just return the remaining ones.
+    nextPurchases
+  else
+    // if a greater amount of the asset has been sold than purchased first, then continue processing the remaining ones
+    if !nextPurchases.isEmpty then
+      val (newFirstPurchaseTime, newFirstPurchase) = nextPurchases.head
+      val newNextPurchases = nextPurchases.tail
+      sellFIFOStep(newFirstPurchaseTime, newFirstPurchase, newNextPurchases, time, timeMinus1Year, -firstPurchaseAmountReduced, /* FIXME we might have to reduce this */ cost)
+    else
+      throw TransactionException("trying to sell more of an asset than we had left")
+
+/** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first. */
+def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: LocalDateTime, volume: BigDecimal, cost: BigDecimal): SeqMap[Temporal, Purchase] =
   /* FIXME implement FIFO algorithm for selling:
    *
    * while vol > 0
@@ -98,7 +122,10 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, volume: BigD
    * taxableGain = gain - overallFee
    * (*) for taxation, only take into account purchases with a holding period of <= a year
    */
-  purchases
+  val (firstPurchaseTime, firstPurchase) = purchases.head
+  val nextPurchases = purchases.tail
+  val timeMinus1Year = time.minusYears(1)
+  sellFIFOStep(firstPurchaseTime, firstPurchase, nextPurchases, time, timeMinus1Year, volume, cost)
 
 /** Given the current state, process a transaction and return the new state */
 def processTx(st: State, tx: Transaction): State =
