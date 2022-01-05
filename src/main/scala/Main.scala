@@ -107,10 +107,10 @@ def sellFIFOStep(firstPurchaseTime: Temporal, firstPurchase: Purchase, nextPurch
 
 /** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first. */
 def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: LocalDateTime, volume: BigDecimal, cost: BigDecimal): SeqMap[Temporal, Purchase] =
-  /* FIXME implement FIFO algorithm for selling:
+  /* FIXME implement FIFO tax computation:
    *
    * while vol > 0
-   *   reduce volume of first (list head) purchase of currency
+   *   ✓ reduce volume of first (list head) purchase of currency
    *   determine cost of purchasing that amount (proportionate if > 0 remains) (*)
    *   determine (proportionate) fee of purchasing that amount (*)
    *   continue with next purchase of same currency
@@ -120,7 +120,7 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: LocalDateTime, volume:
    * overallFee = sumPurchaseFee + sumSaleFee
    *
    * taxableGain = gain - overallFee
-   * (*) for taxation, only take into account purchases with a holding period of <= a year
+   * (*) for taxation, only take into account sales of purchases with a holding period of <= a year
    */
   val (firstPurchaseTime, firstPurchase) = purchases.head
   val nextPurchases = purchases.tail
