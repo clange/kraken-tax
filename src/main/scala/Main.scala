@@ -97,7 +97,7 @@ extends Exception(message, cause)
 
 /** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first.
   * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset. */
-def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal): SeqMap[Temporal, Purchase] =
+def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal): (SeqMap[Temporal, Purchase], BigDecimal, BigDecimal) =
   val (firstPurchaseTime, firstPurchase) = purchases.head
   val nextPurchases = purchases.tail
   val firstPurchaseAmountReduced = firstPurchase.amountLeft - volume
@@ -119,16 +119,20 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
   firstPurchaseAmountReduced match
     case x if x > 0 =>
       // if the first purchase has not been sold completely, just reduce its amount ...
-      ListMap(firstPurchaseTime -> Purchase(
+      (ListMap(firstPurchaseTime -> Purchase(
         firstPurchase.amountPurchased,
         firstPurchaseAmountReduced,
         firstPurchase.cost,
         firstPurchase.fee))
       // ... and leave the rest of the list unchanged.
-        ++ nextPurchases
+        ++ nextPurchases,
+        BigDecimal(0), // FIXME
+        BigDecimal(0)) // FIXME
     case 0 =>
       // if the first purchase has been sold exactly, just return the remaining ones.
-      nextPurchases
+      (nextPurchases,
+        BigDecimal(0), // FIXME
+        BigDecimal(0)) // FIXME
     case x if x < 0 =>
       // if a greater amount of the asset has been sold than purchased first, then continue processing the remaining ones
       if !nextPurchases.isEmpty then
@@ -139,32 +143,33 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
 /** Given the current state, process a transaction and return the new state */
 def processTx(st: State, tx: Transaction): State =
   // printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
-  State(
-    assets = (st.assets +
-      (tx.currency ->
-        (tx.typ match
-          case TransactionType.buy =>
-            // the following default to the empty Map
-            st.assets(tx.currency)
-              + (tx.time -> Purchase(
-                amountPurchased = tx.vol,
-                cost            = tx.cost,
-                fee             = tx.fee))
-          case TransactionType.sell =>
-            if !st.assets(tx.currency).isEmpty then
-              // TODO implement not just the change to the assets, but also compute the tax
-              sellFIFO(
-                purchases      = st.assets(tx.currency),
-                time           = tx.time,
-                timeMinus1Year = tx.time.minusYears(1),
-                volume         = tx.vol,
-                cost           = tx.cost)
-            else
-              throw TransactionException("trying to sell an asset of which we don't have any")
-      ))),
-    sumGains = st.sumGains,
-    sumTaxableGains = st.sumGains,
-    sumFees = st.sumFees)
+  tx.typ match
+    case TransactionType.buy =>
+      State(assets      = (st.assets +
+        (tx.currency ->
+          // the following defaults to the empty Map
+          (st.assets(tx.currency)
+          + (tx.time -> Purchase(
+            amountPurchased = tx.vol,
+            cost            = tx.cost,
+            fee             = tx.fee))))),
+        sumGains        = st.sumGains,
+        sumTaxableGains = st.sumTaxableGains,
+        sumFees         = st.sumFees + tx.fee)
+    case TransactionType.sell =>
+      if !st.assets(tx.currency).isEmpty then
+        val (assetsOfCurrency, sumGains, sumTaxableGains) = sellFIFO(
+          purchases      = st.assets(tx.currency),
+          time           = tx.time,
+          timeMinus1Year = tx.time.minusYears(1),
+          volume         = tx.vol,
+          cost           = tx.cost)
+        State(assets = (st.assets + (tx.currency -> assetsOfCurrency)),
+          sumGains = sumGains,
+          sumTaxableGains = sumTaxableGains,
+          sumFees = st.sumFees + tx.fee)
+      else
+        throw TransactionException("trying to sell an asset of which we don't have any")
 
 /** Old-style currency pair, e.g., XETHZEUR */
 val currencyREXZ = s"X(\\p{Lu}+)Z$onlyFiatCurrency".r
