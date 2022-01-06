@@ -7,31 +7,6 @@ import scala.collection.immutable.{ListMap,SeqMap}
 /** We currently assume that always the same fiat currency is involved (hard-coded to EUR) */
 val onlyFiatCurrency = "EUR"
 
-/** Record type according to https://docs.scala-lang.org/scala3/book/types-structural.html */
-class Record(elems: (String, Any)*) extends Selectable:
-  private val fields = elems.toMap
-  def selectDynamic(name: String): Any = fields(name)
-
-/** State of gains and taxation */
-class State(
-  /** the assets being held at the moment */
-  val assets: Map[Currency, SeqMap[Temporal, Purchase]],
-  /** the sum of all gains so far */
-  val sumGains: BigDecimal,
-  /** the sum of all taxable gains so far */
-  val sumTaxableGains: BigDecimal,
-  /** the sum of all fees incurred so far */
-  val sumFees: BigDecimal):
-  /** initial state before processing any transactions */
-  def this() =
-    this(
-      assets = Map
-        .empty[Currency, SeqMap[Temporal, Purchase]]
-        .withDefaultValue(ListMap.empty[Temporal, Purchase]),
-      sumGains = BigDecimal(0),
-      sumTaxableGains = BigDecimal(0),
-      sumFees = BigDecimal(0))
-
 /** One purchase of an asset (and what's left of it) */
 class Purchase(
   // TODO do we need to (redundantly) store currency and date here as well, or rather just in "state"?
@@ -71,6 +46,11 @@ enum TransactionType:
       case TransactionType.buy => 1
       case TransactionType.sell => -1
 
+/** Record type according to https://docs.scala-lang.org/scala3/book/types-structural.html */
+class Record(elems: (String, Any)*) extends Selectable:
+  private val fields = elems.toMap
+  def selectDynamic(name: String): Any = fields(name)
+
 /** All relevant information about a transaction */
 type Transaction = Record {
   /** part of "pair" */
@@ -94,6 +74,64 @@ case class TransactionException(
   private val message: String = "", 
   private val cause: Throwable = None.orNull)
 extends Exception(message, cause)
+
+/** State of gains and taxation */
+class State(
+  /** the assets being held at the moment */
+  val assets: Map[Currency, SeqMap[Temporal, Purchase]],
+  /** the sum of all gains so far */
+  val sumGains: BigDecimal,
+  /** the sum of all taxable gains so far */
+  val sumTaxableGains: BigDecimal,
+  /** the sum of all fees incurred so far */
+  val sumFees: BigDecimal):
+  /** initial state before processing any transactions */
+  def this() =
+    this(
+      assets = Map
+        .empty[Currency, SeqMap[Temporal, Purchase]]
+        .withDefaultValue(ListMap.empty[Temporal, Purchase]),
+      sumGains = BigDecimal(0),
+      sumTaxableGains = BigDecimal(0),
+      sumFees = BigDecimal(0))
+
+  def newForCurrency(currency: Currency, purchases: SeqMap[Temporal, Purchase], gain: BigDecimal, taxableGain: BigDecimal, fee: BigDecimal): State =
+    State(
+      this.assets          + (currency -> purchases),
+      this.sumGains        + gain,
+      this.sumTaxableGains + taxableGain,
+      this.sumFees         + fee)
+
+  /** Given the current state, process a transaction and return the new state */
+  def process(tx: Transaction): State =
+    // printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
+    tx.typ match
+      case TransactionType.buy =>
+        newForCurrency(
+          tx.currency,
+          purchases =
+            // the following defaults to the empty Map
+            this.assets(tx.currency)
+            + (tx.time -> Purchase(tx.vol, tx.cost, tx.fee)),
+          0,
+          0,
+          tx.fee)
+      case TransactionType.sell =>
+        if !assets(tx.currency).isEmpty then
+          val (assetsOfCurrency, gain, taxableGain) = sellFIFO(
+            purchases = this.assets(tx.currency),
+            tx.time,
+            timeMinus1Year = tx.time.minusYears(1),
+            tx.vol,
+            tx.cost)
+          newForCurrency(
+            tx.currency,
+            purchases = assetsOfCurrency,
+            gain,
+            taxableGain,
+            tx.fee)
+        else
+          throw TransactionException("trying to sell an asset of which we don't have any")
 
 /** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first.
   * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset. */
@@ -140,37 +178,6 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
       else
         throw TransactionException("trying to sell more of an asset than we had left")
 
-/** Given the current state, process a transaction and return the new state */
-def processTx(st: State, tx: Transaction): State =
-  // printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
-  tx.typ match
-    case TransactionType.buy =>
-      State(assets      = (st.assets +
-        (tx.currency ->
-          // the following defaults to the empty Map
-          (st.assets(tx.currency)
-          + (tx.time -> Purchase(
-            amountPurchased = tx.vol,
-            cost            = tx.cost,
-            fee             = tx.fee))))),
-        sumGains        = st.sumGains,
-        sumTaxableGains = st.sumTaxableGains,
-        sumFees         = st.sumFees + tx.fee)
-    case TransactionType.sell =>
-      if !st.assets(tx.currency).isEmpty then
-        val (assetsOfCurrency, sumGains, sumTaxableGains) = sellFIFO(
-          purchases      = st.assets(tx.currency),
-          time           = tx.time,
-          timeMinus1Year = tx.time.minusYears(1),
-          volume         = tx.vol,
-          cost           = tx.cost)
-        State(assets = (st.assets + (tx.currency -> assetsOfCurrency)),
-          sumGains = sumGains,
-          sumTaxableGains = sumTaxableGains,
-          sumFees = st.sumFees + tx.fee)
-      else
-        throw TransactionException("trying to sell an asset of which we don't have any")
-
 /** Old-style currency pair, e.g., XETHZEUR */
 val currencyREXZ = s"X(\\p{Lu}+)Z$onlyFiatCurrency".r
 /** Currency pair, e.g., DOTEUR */
@@ -206,7 +213,7 @@ val dateTimeFormat = DateTimeFormatterBuilder()
           "fee"      -> BigDecimal(tx("fee")),
           "vol"      -> BigDecimal(tx("vol"))
         ).asInstanceOf[Transaction])
-    .foldLeft(new State)(processTx)
+    .foldLeft(new State)(_.process(_))
   println(finalState.assets)
   printf("Sum of fees: %s\n", finalState.sumFees)
   reader.close()
