@@ -2,6 +2,7 @@ import com.github.tototoshi.csv._
 import java.time.LocalDateTime
 import java.time.format.{DateTimeFormatter,DateTimeFormatterBuilder}
 import java.time.temporal.{ChronoField,Temporal}
+import scala.annotation.tailrec
 import scala.collection.immutable.{ListMap,SeqMap}
 
 /** We currently assume that always the same fiat currency is involved (hard-coded to EUR) */
@@ -135,6 +136,7 @@ class State(
 
 /** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first.
   * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset. */
+@tailrec
 def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal): (SeqMap[Temporal, Purchase], BigDecimal, BigDecimal) =
   val (firstPurchaseTime, firstPurchase) = purchases.head
   val nextPurchases = purchases.tail
