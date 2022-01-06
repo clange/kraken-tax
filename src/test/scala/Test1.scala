@@ -1,5 +1,5 @@
-import org.junit.Test
-import org.junit.Assert.*
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should._
 
 import java.time.LocalDateTime
 import java.time.temporal.Temporal
@@ -22,43 +22,58 @@ def sellFIFOVolume(purchases: SeqMap[Temporal, Purchase], volume: BigDecimal): S
     cost   = 0         // irrelevant for this test
   )
 
-class Test1:
+class Test1 extends AnyFunSpec with Matchers:
   val date1    = LocalDateTime.parse("2021-12-11 00:17:59.1546", dateTimeFormat)
   val date2    = LocalDateTime.parse("2021-12-20 05:57:51.4673", dateTimeFormat)
   val date3    = LocalDateTime.parse("2021-12-20 06:00:26.6124", dateTimeFormat)
 
-  @Test def sellFIFO_SinglePurchaseCompletely(): Unit =
-    val purchasesBefore = ListMap[Temporal, Purchase](date1 // irrelevant for this test
-      -> PurchaseAmount(1))
-    val purchasesAfter = sellFIFOVolume(purchasesBefore, 1)
-    assertTrue(purchasesAfter.isEmpty)
+  describe("The list of purchases") {
+    describe("after a single purchase has been sold completely") {
+      it("should be empty") {
+        val purchasesBefore = ListMap[Temporal, Purchase](date1 // irrelevant for this test
+          -> PurchaseAmount(1))
+        val purchasesAfter = sellFIFOVolume(purchasesBefore, 1)
+        purchasesAfter shouldBe empty
+      }
+    }
 
-  @Test def sellFIFO_SinglePurchasePartially(): Unit =
-    val purchasesBefore = ListMap[Temporal, Purchase](date1 // irrelevant for this test
-      -> PurchaseAmount(2))
-    val purchasesAfter = sellFIFOVolume(purchasesBefore, 1)
-    assertEquals(purchasesAfter.head._2.amountLeft, 1)
+    describe("after a single purchase has been sold partially") {
+      it("should have some amount left from that purchase") {
+        val purchasesBefore = ListMap[Temporal, Purchase](date1 // irrelevant for this test
+          -> PurchaseAmount(2))
+        val purchasesAfter = sellFIFOVolume(purchasesBefore, 1)
+        purchasesAfter.head._2.amountLeft shouldBe 1
+      }
+    }
 
-  @Test def sellFIFO_FirstAndPartOfSecondPurchase(): Unit =
-    val purchasesBefore = ListMap[Temporal, Purchase](
-      date1 -> PurchaseAmount(1),
-      date2 -> PurchaseAmount(2)
-    )
-    val purchasesAfter = sellFIFOVolume(purchasesBefore, 2)
-    assertEquals(purchasesAfter.head._2.amountLeft, 1)
+    describe("after the first purchase has been sold completely, and part of the second purchase,") {
+      it("should have some amount left from the latter") {
+        val purchasesBefore = ListMap[Temporal, Purchase](
+          date1 -> PurchaseAmount(1),
+          date2 -> PurchaseAmount(2)
+        )
+        val purchasesAfter = sellFIFOVolume(purchasesBefore, 2)
+        purchasesAfter.head._2.amountLeft shouldBe 1
+      }
 
-  @Test def sellFIFO_FirstAndPartOfSecondButNotThird(): Unit =
-    val purchasesBefore = ListMap[Temporal, Purchase](
-      date1 -> PurchaseAmount(1),
-      date2 -> PurchaseAmount(2),
-      date3 -> PurchaseAmount(3))
-    val purchasesAfter = sellFIFOVolume(purchasesBefore, 2)
-    assertEquals(purchasesAfter.tail.head._2.amountLeft, 3)
+      it("should have everything left from a third purchase") {
+        val purchasesBefore = ListMap[Temporal, Purchase](
+          date1 -> PurchaseAmount(1),
+          date2 -> PurchaseAmount(2),
+          date3 -> PurchaseAmount(3))
+        val purchasesAfter = sellFIFOVolume(purchasesBefore, 2)
+        purchasesAfter.tail.head._2.amountLeft shouldBe 3
+      }
+    }
 
-  @Test def sellFIFO_FirstAndSecondAndPartOfThird(): Unit =
-    val purchasesBefore = ListMap[Temporal, Purchase](
-      date1 -> PurchaseAmount(1),
-      date2 -> PurchaseAmount(2),
-      date3 -> PurchaseAmount(3))
-    val purchasesAfter = sellFIFOVolume(purchasesBefore, 4)
-    assertEquals(purchasesAfter.head._2.amountLeft, 2)
+    describe("after the first and second purchases have been sold completely, and part of the third purchase,") {
+      it("should have some amount left from the latter") {
+        val purchasesBefore = ListMap[Temporal, Purchase](
+          date1 -> PurchaseAmount(1),
+          date2 -> PurchaseAmount(2),
+          date3 -> PurchaseAmount(3))
+        val purchasesAfter = sellFIFOVolume(purchasesBefore, 4)
+        purchasesAfter.head._2.amountLeft shouldBe 2
+      }
+    }
+  }
