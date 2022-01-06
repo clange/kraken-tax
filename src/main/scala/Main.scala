@@ -13,10 +13,24 @@ class Record(elems: (String, Any)*) extends Selectable:
   def selectDynamic(name: String): Any = fields(name)
 
 /** State of gains and taxation */
-type State = Record {
-  val assets: Map[Currency, SeqMap[Temporal, Purchase]]
-  val sumFees: BigDecimal
-}
+class State(
+  /** the assets being held at the moment */
+  val assets: Map[Currency, SeqMap[Temporal, Purchase]],
+  /** the sum of all gains so far */
+  val sumGains: BigDecimal,
+  /** the sum of all taxable gains so far */
+  val sumTaxableGains: BigDecimal,
+  /** the sum of all fees incurred so far */
+  val sumFees: BigDecimal):
+  /** initial state before processing any transactions */
+  def this() =
+    this(
+      assets = Map
+        .empty[Currency, SeqMap[Temporal, Purchase]]
+        .withDefaultValue(ListMap.empty[Temporal, Purchase]),
+      sumGains = BigDecimal(0),
+      sumTaxableGains = BigDecimal(0),
+      sumFees = BigDecimal(0))
 
 /** One purchase of an asset (and what's left of it) */
 class Purchase(
@@ -125,8 +139,8 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
 /** Given the current state, process a transaction and return the new state */
 def processTx(st: State, tx: Transaction): State =
   // printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
-  Record(
-    "assets" -> (st.assets +
+  State(
+    assets = (st.assets +
       (tx.currency ->
         (tx.typ match
           case TransactionType.buy =>
@@ -148,8 +162,9 @@ def processTx(st: State, tx: Transaction): State =
             else
               throw TransactionException("trying to sell an asset of which we don't have any")
       ))),
-    "sumFees" -> (st.sumFees + tx.fee))
-    .asInstanceOf[State]
+    sumGains = st.sumGains,
+    sumTaxableGains = st.sumGains,
+    sumFees = st.sumFees)
 
 /** Old-style currency pair, e.g., XETHZEUR */
 val currencyREXZ = s"X(\\p{Lu}+)Z$onlyFiatCurrency".r
@@ -167,14 +182,6 @@ val dateTimeFormat = DateTimeFormatterBuilder()
   .appendPattern("uuuu-MM-dd HH:mm:ss")
   .appendFraction(ChronoField.NANO_OF_SECOND, 3, 4, true)
   .toFormatter()
-
-/** initial state before processing any transactions */
-val zeroState = Record(
-  "assets" -> Map
-    .empty[Currency, SeqMap[Temporal, Purchase]]
-    .withDefaultValue(ListMap.empty[LocalDateTime, Purchase]),
-  "sumFees" -> BigDecimal(0))
-  .asInstanceOf[State]
 
 /** Main program */
 @main def main: Unit = 
@@ -194,7 +201,7 @@ val zeroState = Record(
           "fee"      -> BigDecimal(tx("fee")),
           "vol"      -> BigDecimal(tx("vol"))
         ).asInstanceOf[Transaction])
-    .foldLeft(zeroState)(processTx)
+    .foldLeft(new State)(processTx)
   println(finalState.assets)
   printf("Sum of fees: %s\n", finalState.sumFees)
   reader.close()
