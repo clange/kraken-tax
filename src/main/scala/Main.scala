@@ -138,7 +138,7 @@ class State(
   * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset. */
 @tailrec
 def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal):
-    (/* purchases = */ SeqMap[Temporal, Purchase],
+    (/* newPurchases = */ SeqMap[Temporal, Purchase],
      /* gain = */ BigDecimal,
      /* taxableGain */ BigDecimal) =
   val (firstPurchaseTime, firstPurchase) = purchases.head
@@ -148,9 +148,9 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
    *
    * while vol > 0
    *   ✓ reduce volume of first (list head) purchase of currency
-   *   determine cost of purchasing that amount (proportionate if > 0 remains) (*)
-   *   determine (proportionate) fee of purchasing that amount (*)
-   *   continue with next purchase of same currency
+   *   ✓ determine cost of purchasing that amount (proportionate if > 0 remains) (*)
+   *   ✓ determine (proportionate) fee of purchasing that amount (*)
+   *   ✓ continue with next purchase of same currency
    *
    * gain = sumSold - sumPurchaseCost
    *
@@ -159,6 +159,10 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
    * taxableGain = gain - overallFee
    * (*) for taxation, only take into account sales of purchases with a holding period of <= a year
    */
+  val shareSold = volume / firstPurchase.amountPurchased
+  // determine the proportionate cost of purchasing the amount that's being sold
+  val partialCost = firstPurchase.cost * shareSold
+  val partialPurchaseFee = firstPurchase.fee * shareSold
   firstPurchaseAmountReduced match
     case x if x > 0 =>
       // if the first purchase has not been sold completely, just reduce its amount ...
