@@ -137,7 +137,10 @@ class State(
 /** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first.
   * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset. */
 @tailrec
-def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal): (SeqMap[Temporal, Purchase], BigDecimal, BigDecimal) =
+def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal):
+    (/* purchases = */ SeqMap[Temporal, Purchase],
+     /* gain = */ BigDecimal,
+     /* taxableGain */ BigDecimal) =
   val (firstPurchaseTime, firstPurchase) = purchases.head
   val nextPurchases = purchases.tail
   val firstPurchaseAmountReduced = firstPurchase.amountLeft - volume
@@ -166,13 +169,13 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
         firstPurchase.fee))
       // ... and leave the rest of the list unchanged.
         ++ nextPurchases,
-        BigDecimal(0), // FIXME
-        BigDecimal(0)) // FIXME
+        /* gain = */ BigDecimal(0), // FIXME
+        /* taxableGain = */ BigDecimal(0)) // FIXME
     case 0 =>
       // if the first purchase has been sold exactly, just return the remaining ones.
       (nextPurchases,
-        BigDecimal(0), // FIXME
-        BigDecimal(0)) // FIXME
+        /* gain = */ BigDecimal(0), // FIXME
+        /* taxableGain = */ BigDecimal(0)) // FIXME
     case x if x < 0 =>
       // if a greater amount of the asset has been sold than purchased first, then continue processing the remaining ones
       if !nextPurchases.isEmpty then
