@@ -119,7 +119,7 @@ class State(
           tx.fee)
       case TransactionType.sell =>
         if !assets(tx.currency).isEmpty then
-          val (assetsOfCurrency, gain, taxableGain) = sellFIFO(
+          val (assetsOfCurrency, purchaseCost, purchaseFee, taxableGain) = sellFIFO(
             purchases = this.assets(tx.currency),
             tx.time,
             timeMinus1Year = tx.time.minusYears(1),
@@ -128,7 +128,7 @@ class State(
           newForCurrency(
             tx.currency,
             purchases = assetsOfCurrency,
-            gain,
+            gain = tx.cost - purchaseCost,
             taxableGain,
             tx.fee)
         else
@@ -138,8 +138,9 @@ class State(
   * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset. */
 @tailrec
 def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal):
-    (/* newPurchases = */ SeqMap[Temporal, Purchase],
-     /* gain = */ BigDecimal,
+    (/* newPurchases */ SeqMap[Temporal, Purchase],
+     /* purchaseCost */ BigDecimal,
+     /* purchaseFee */ BigDecimal,
      /* taxableGain */ BigDecimal) =
   val (firstPurchaseTime, firstPurchase) = purchases.head
   val nextPurchases = purchases.tail
@@ -173,12 +174,14 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
         firstPurchase.fee))
       // ... and leave the rest of the list unchanged.
         ++ nextPurchases,
-        /* gain = */ BigDecimal(0), // FIXME
+        /* purchaseCost = */ BigDecimal(0), // FIXME
+        /* purchaseiFee = */ BigDecimal(0), // FIXME
         /* taxableGain = */ BigDecimal(0)) // FIXME
     case 0 =>
       // if the first purchase has been sold exactly, just return the remaining ones.
       (nextPurchases,
-        /* gain = */ BigDecimal(0), // FIXME
+        /* purchaseCost = */ BigDecimal(0), // FIXME
+        /* purchaseiFee = */ BigDecimal(0), // FIXME
         /* taxableGain = */ BigDecimal(0)) // FIXME
     case x if x < 0 =>
       // if a greater amount of the asset has been sold than purchased first, then continue processing the remaining ones
