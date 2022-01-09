@@ -174,9 +174,9 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
         firstPurchase.fee))
       // ... and leave the rest of the list unchanged.
         ++ nextPurchases,
-        /* purchaseCost = */ BigDecimal(0), // FIXME
-        /* purchaseiFee = */ BigDecimal(0), // FIXME
-        /* taxableGain = */ BigDecimal(0)) // FIXME
+        /* purchaseCost = */ partialCost, // FIXME only compute when gain is taxable
+        /* purchaseFee = */ partialPurchaseFee,
+        /* taxableGain = */ BigDecimal(0)) // FIXME compute proportionate gain
     case 0 =>
       // if the first purchase has been sold exactly, just return the remaining ones.
       (nextPurchases,
