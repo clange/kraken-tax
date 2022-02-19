@@ -47,28 +47,22 @@ enum TransactionType:
       case TransactionType.buy => 1
       case TransactionType.sell => -1
 
-/** Record type according to https://docs.scala-lang.org/scala3/book/types-structural.html */
-class Record(elems: (String, Any)*) extends Selectable:
-  private val fields = elems.toMap
-  def selectDynamic(name: String): Any = fields(name)
-
 /** All relevant information about a transaction */
-type Transaction = Record {
+class Transaction(
   /** part of "pair" */
-  val currency: Currency
+  val currency: Currency,
   /** "time" */
-  val time: LocalDateTime
+  val time: LocalDateTime,
   /** "type" */
-  val typ: TransactionType
+  val typ: TransactionType,
   /** "price" */
-  val price: BigDecimal
+  val price: BigDecimal,
   /** "cost" */
-  val cost: BigDecimal
+  val cost: BigDecimal,
   /** "fee" */
-  val fee: BigDecimal
+  val fee: BigDecimal,
   /** "vol" */
-  val vol: BigDecimal
-}
+  val vol: BigDecimal)
 
 /** Custom class for exceptions that occur during transaction processing */
 case class TransactionException(
@@ -96,6 +90,7 @@ class State(
       sumTaxableGains = BigDecimal(0),
       sumFees = BigDecimal(0))
 
+  /** Return a modification of this state: replace the purchases of the given currency, add the latest overall gains, taxable gains and fees. */
   def newForCurrency(currency: Currency, purchases: SeqMap[Temporal, Purchase], gain: BigDecimal, taxableGain: BigDecimal, fee: BigDecimal): State =
     State(
       this.assets          + (currency -> purchases),
@@ -164,6 +159,7 @@ def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Ye
   // determine the proportionate cost of purchasing the amount that's being sold
   val partialCost = firstPurchase.cost * shareSold
   val partialPurchaseFee = firstPurchase.fee * shareSold
+  val salePrice = cost / volume
   firstPurchaseAmountReduced match
     case x if x > 0 =>
       // if the first purchase has not been sold completely, just reduce its amount ...
@@ -216,15 +212,15 @@ val dateTimeFormat = DateTimeFormatterBuilder()
   // parse one CSV record into a Transaction
     .map(
       tx =>
-        Record(
-          "currency" -> extractCryptoCurrency(tx("pair")),
-          "time"     -> LocalDateTime.parse(tx("time"), dateTimeFormat), // TODO actually UTC, but should be converted to local timezone to be precise w.r.t. tax years
-          "typ"      -> TransactionType.valueOf(tx("type")),
-          "price"    -> BigDecimal(tx("price")),
-          "cost"     -> BigDecimal(tx("cost")),
-          "fee"      -> BigDecimal(tx("fee")),
-          "vol"      -> BigDecimal(tx("vol"))
-        ).asInstanceOf[Transaction])
+        Transaction(
+          currency = extractCryptoCurrency(tx("pair")),
+          time = LocalDateTime.parse(tx("time"), dateTimeFormat), // TODO actually UTC, but should be converted to local timezone to be precise w.r.t. tax years
+          typ = TransactionType.valueOf(tx("type")),
+          price = BigDecimal(tx("price")),
+          cost = BigDecimal(tx("cost")),
+          fee = BigDecimal(tx("fee")),
+          vol = BigDecimal(tx("vol"))
+        ))
     .foldLeft(new State)(_.process(_))
   println(finalState.assets)
   printf("Sum of fees: %s\n", finalState.sumFees)
