@@ -1,5 +1,6 @@
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should._
+import org.scalatest.matchers.should.Matchers._
 
 import java.time.LocalDateTime
 import java.time.temporal.Temporal
@@ -14,12 +15,13 @@ extends Purchase(
 
 val dateLate = LocalDateTime.parse("9999-12-31 23:59:59.9999", dateTimeFormat)
 
-def sellFIFOVolume(purchases: SeqMap[Temporal, Purchase], volume: BigDecimal): SeqMap[Temporal, Purchase] =
+def sellFIFOVolume(purchases: SeqMap[Temporal, Purchase], volume: BigDecimal): (SeqMap[Temporal, Purchase], BigDecimal, BigDecimal, BigDecimal) =
   sellFIFO(
     purchases,
-    time   = dateLate, // irrelevant for this test
-    volume = volume,
-    cost   = 0         // irrelevant for this test
+    time           = dateLate, // irrelevant for this test
+    timeMinus1Year = dateLate, // irrelevant for this test
+    volume         = volume,
+    cost           = 0         // irrelevant for this test
   )
 
 class Test1 extends AnyFunSpec with Matchers:
@@ -33,7 +35,7 @@ class Test1 extends AnyFunSpec with Matchers:
         val purchasesBefore = ListMap[Temporal, Purchase](date1 // irrelevant for this test
           -> PurchaseAmount(1))
         val purchasesAfter = sellFIFOVolume(purchasesBefore, 1)
-        purchasesAfter shouldBe empty
+        purchasesAfter._1 shouldBe empty
       }
     }
 
@@ -42,7 +44,7 @@ class Test1 extends AnyFunSpec with Matchers:
         val purchasesBefore = ListMap[Temporal, Purchase](date1 // irrelevant for this test
           -> PurchaseAmount(2))
         val purchasesAfter = sellFIFOVolume(purchasesBefore, 1)
-        purchasesAfter.head._2.amountLeft shouldBe 1
+        purchasesAfter._1.head._2.amountLeft shouldBe 1
       }
     }
 
@@ -53,7 +55,7 @@ class Test1 extends AnyFunSpec with Matchers:
           date2 -> PurchaseAmount(2)
         )
         val purchasesAfter = sellFIFOVolume(purchasesBefore, 2)
-        purchasesAfter.head._2.amountLeft shouldBe 1
+        purchasesAfter._1.head._2.amountLeft shouldBe 1
       }
 
       it("should have everything left from a third purchase") {
@@ -62,7 +64,7 @@ class Test1 extends AnyFunSpec with Matchers:
           date2 -> PurchaseAmount(2),
           date3 -> PurchaseAmount(3))
         val purchasesAfter = sellFIFOVolume(purchasesBefore, 2)
-        purchasesAfter.tail.head._2.amountLeft shouldBe 3
+        purchasesAfter._1.tail.head._2.amountLeft shouldBe 3
       }
     }
 
@@ -73,7 +75,7 @@ class Test1 extends AnyFunSpec with Matchers:
           date2 -> PurchaseAmount(2),
           date3 -> PurchaseAmount(3))
         val purchasesAfter = sellFIFOVolume(purchasesBefore, 4)
-        purchasesAfter.head._2.amountLeft shouldBe 2
+        purchasesAfter._1.head._2.amountLeft shouldBe 2
       }
     }
   }
