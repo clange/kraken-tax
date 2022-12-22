@@ -130,9 +130,15 @@ class State(
           throw TransactionException("trying to sell an asset of which we don't have any")
 
 /** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first.
-  * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset. */
+  * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset.
+  * @param volume the volume to be sold */
 @tailrec
-def sellFIFO(purchases: SeqMap[Temporal, Purchase], time: Temporal, timeMinus1Year: Temporal, volume: BigDecimal, cost: BigDecimal):
+def sellFIFO(
+  purchases: SeqMap[Temporal, Purchase],
+  time: Temporal,
+  timeMinus1Year: Temporal,
+  volume: BigDecimal,
+  cost: BigDecimal):
     (/* newPurchases */ SeqMap[Temporal, Purchase],
      /* purchaseCost */ BigDecimal,
      /* purchaseFee */ BigDecimal,
