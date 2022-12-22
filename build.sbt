@@ -1,4 +1,4 @@
-val scala3Version = "3.1.2"
+val scala3Version = "3.2.1"
 
 lazy val root = project
   .in(file("."))
@@ -8,7 +8,7 @@ lazy val root = project
 
     scalaVersion := scala3Version,
 
-    libraryDependencies += "org.scalactic" %% "scalactic" % "3.2.11",
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.11" % "test",
+    libraryDependencies += "org.scalactic" %% "scalactic" % "3.2.14",
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.14" % "test",
     libraryDependencies += "com.github.tototoshi" %% "scala-csv" % "1.3.10"
   )
