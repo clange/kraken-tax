@@ -15,9 +15,9 @@ class Purchase(
   val amountPurchased: BigDecimal,
   /** the amount still available (taking into account sales) */
   val amountLeft: BigDecimal,
-  /** the cost of purchase */
+  /** the cost of purchase, based on the original amount */
   val cost: BigDecimal,
-  /** the fee paid for purchasing */
+  /** the fee paid for purchasing, based on the original amount */
   val fee: BigDecimal):
   /** For a new purchase, the amount left is the same as the amount purchased. */
   def this(amountPurchased: BigDecimal, cost: BigDecimal, fee: BigDecimal) =
@@ -140,10 +140,10 @@ class State(
     timeMinus1Year: Temporal,
     volume: BigDecimal,
     cost: BigDecimal):
-      (/* newPurchases */ SeqMap[Temporal, Purchase],
-       /* purchaseCost */ BigDecimal,
-       /* purchaseFee */ BigDecimal,
-       /* taxableGain */ BigDecimal) =
+      (SeqMap[Temporal, Purchase] /* newPurchases */,
+       BigDecimal                 /* purchaseCost */,
+       BigDecimal                 /* purchaseFee */,
+       BigDecimal                 /* taxableGain */) =
     val (firstPurchaseTime, firstPurchase) = purchases.head
     val nextPurchases = purchases.tail
     // sell from the first (earliest) purchase:
@@ -163,6 +163,8 @@ class State(
      * taxableGain = gain - overallFee
      * (*) for taxation, only take into account sales of purchases with a holding period of <= a year
      */
+    val taxable = LocalDateTime.from(firstPurchaseTime).compareTo(LocalDateTime.from(timeMinus1Year)) >= 0
+    // TODO check whether firstPurchaseTime is < timeMinus1Year
     if firstPurchaseAmountReduced > 0 then
       // the first purchase has not been sold completely
       val shareSold = volume / firstPurchase.amountPurchased
@@ -175,12 +177,13 @@ class State(
       (ListMap(firstPurchaseTime -> Purchase(
         firstPurchase.amountPurchased,
         firstPurchaseAmountReduced,
+        // the following two remain unchanged, as they are based on the original purchase
         firstPurchase.cost,
         firstPurchase.fee))
       // ... and leave the rest of the list unchanged.
         ++ nextPurchases,
-        /* purchaseCost = */ partialCost, // FIXME only compute when gain is taxable
-        /* purchaseFee = */ partialPurchaseFee,
+        /* purchaseCost = */ if taxable then partialCost else BigDecimal(0),
+        /* purchaseFee = */ if taxable then partialPurchaseFee else BigDecimal(0),
         /* taxableGain = */ BigDecimal(0)) // FIXME compute proportionate gain
     else if firstPurchaseAmountReduced == 0 then
       // if the first purchase has been sold exactly, just return the remaining ones.
