@@ -95,6 +95,7 @@ class State(
     State(
       this.assets          + (currency -> purchases),
       this.sumGains        + gain,
+      // TODO split taxes per year
       this.sumTaxableGains + taxableGain,
       this.sumFees         + fee)
 
@@ -129,45 +130,47 @@ class State(
         else
           throw TransactionException("trying to sell an asset of which we don't have any")
 
-/** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first.
-  * Execute a (partial) sale, starting with the first purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset.
-  * @param volume the volume to be sold */
-@tailrec
-def sellFIFO(
-  purchases: SeqMap[Temporal, Purchase],
-  time: Temporal,
-  timeMinus1Year: Temporal,
-  volume: BigDecimal,
-  cost: BigDecimal):
-    (/* newPurchases */ SeqMap[Temporal, Purchase],
-     /* purchaseCost */ BigDecimal,
-     /* purchaseFee */ BigDecimal,
-     /* taxableGain */ BigDecimal) =
-  val (firstPurchaseTime, firstPurchase) = purchases.head
-  val nextPurchases = purchases.tail
-  val firstPurchaseAmountReduced = firstPurchase.amountLeft - volume
-  /* FIXME implement FIFO tax computation:
-   *
-   * while vol > 0
-   *   ✓ reduce volume of first (list head) purchase of currency
-   *   ✓ determine cost of purchasing that amount (proportionate if > 0 remains) (*)
-   *   ✓ determine (proportionate) fee of purchasing that amount (*)
-   *   ✓ continue with next purchase of same currency
-   *
-   * gain = sumSold - sumPurchaseCost
-   *
-   * overallFee = sumPurchaseFee + sumSaleFee
-   *
-   * taxableGain = gain - overallFee
-   * (*) for taxation, only take into account sales of purchases with a holding period of <= a year
-   */
-  val shareSold = volume / firstPurchase.amountPurchased
-  // determine the proportionate cost of purchasing the amount that's being sold
-  val partialCost = firstPurchase.cost * shareSold
-  val partialPurchaseFee = firstPurchase.fee * shareSold
-  val salePrice = cost / volume
-  firstPurchaseAmountReduced match
-    case x if x > 0 =>
+  /** From the available purchases of an asset (non-empty), execute a sale, starting with those purchased first.
+    * Execute a (partial) sale, starting with the first (earliest) purchase of an asset, then (if anything is left) continuing with the subsequent purchases of the same asset.
+    * @param volume the volume to be sold */
+  @tailrec
+  private[this] def sellFIFO(
+    purchases: SeqMap[Temporal, Purchase],
+    time: Temporal,
+    timeMinus1Year: Temporal,
+    volume: BigDecimal,
+    cost: BigDecimal):
+      (/* newPurchases */ SeqMap[Temporal, Purchase],
+       /* purchaseCost */ BigDecimal,
+       /* purchaseFee */ BigDecimal,
+       /* taxableGain */ BigDecimal) =
+    val (firstPurchaseTime, firstPurchase) = purchases.head
+    val nextPurchases = purchases.tail
+    // sell from the first (earliest) purchase:
+    val firstPurchaseAmountReduced = firstPurchase.amountLeft - volume
+    /* FIXME implement FIFO tax computation:
+     *
+     * while vol > 0
+     *   ✓ reduce volume of first (list head) purchase of currency
+     *   ✓ determine cost of purchasing that amount (proportionate if > 0 remains) (*)
+     *   ✓ determine (proportionate) fee of purchasing that amount (*)
+     *   ✓ continue with next purchase of same currency
+     *
+     * gain = sumSold - sumPurchaseCost
+     *
+     * overallFee = sumPurchaseFee + sumSaleFee
+     *
+     * taxableGain = gain - overallFee
+     * (*) for taxation, only take into account sales of purchases with a holding period of <= a year
+     */
+    if firstPurchaseAmountReduced > 0 then
+      // the first purchase has not been sold completely
+      val shareSold = volume / firstPurchase.amountPurchased
+      // determine the proportionate cost ...
+      val partialCost = firstPurchase.cost * shareSold
+      // ... amd fee of purchasing the amount that's being sold
+      val partialPurchaseFee = firstPurchase.fee * shareSold
+      val salePrice = cost / volume // TODO check whether we need this
       // if the first purchase has not been sold completely, just reduce its amount ...
       (ListMap(firstPurchaseTime -> Purchase(
         firstPurchase.amountPurchased,
@@ -179,13 +182,13 @@ def sellFIFO(
         /* purchaseCost = */ partialCost, // FIXME only compute when gain is taxable
         /* purchaseFee = */ partialPurchaseFee,
         /* taxableGain = */ BigDecimal(0)) // FIXME compute proportionate gain
-    case 0 =>
+    else if firstPurchaseAmountReduced == 0 then
       // if the first purchase has been sold exactly, just return the remaining ones.
       (nextPurchases,
-        /* purchaseCost = */ BigDecimal(0), // FIXME
-        /* purchaseiFee = */ BigDecimal(0), // FIXME
+        /* purchaseCost = */ firstPurchase.cost, // FIXME taxable?
+        /* purchaseiFee = */ firstPurchase.fee, // FIXME taxable?
         /* taxableGain = */ BigDecimal(0)) // FIXME
-    case x if x < 0 =>
+    else
       // if a greater amount of the asset has been sold than purchased first, then continue processing the remaining ones
       if !nextPurchases.isEmpty then
         sellFIFO(nextPurchases, time, timeMinus1Year, -firstPurchaseAmountReduced, /* FIXME we might have to reduce this */ cost)
