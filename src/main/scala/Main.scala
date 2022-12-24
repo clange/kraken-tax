@@ -105,14 +105,14 @@ class State(
     tx.typ match
       case TransactionType.buy =>
         newForCurrency(
-          tx.currency,
+          currency = tx.currency,
           purchases =
             // the following defaults to the empty Map
             this.assets(tx.currency)
             + (tx.time -> Purchase(tx.vol, tx.cost, tx.fee)),
-          0,
-          0,
-          tx.fee)
+          gain = 0,
+          taxableGain = 0,
+          fee = tx.fee)
       case TransactionType.sell =>
         if !assets(tx.currency).isEmpty then
           val (assetsOfCurrency, purchaseCost, purchaseFee, taxableGain) = sellFIFO(
@@ -163,8 +163,8 @@ class State(
      * taxableGain = gain - overallFee
      * (*) for taxation, only take into account sales of purchases with a holding period of <= a year
      */
+    // only transactions (gains as well as losses) that took place within the past year are taxable
     val taxable = LocalDateTime.from(firstPurchaseTime).compareTo(LocalDateTime.from(timeMinus1Year)) >= 0
-    // TODO check whether firstPurchaseTime is < timeMinus1Year
     if firstPurchaseAmountReduced > 0 then
       // the first purchase has not been sold completely
       val shareSold = volume / firstPurchase.amountPurchased
@@ -188,8 +188,8 @@ class State(
     else if firstPurchaseAmountReduced == 0 then
       // if the first purchase has been sold exactly, just return the remaining ones.
       (nextPurchases,
-        /* purchaseCost = */ firstPurchase.cost, // FIXME taxable?
-        /* purchaseiFee = */ firstPurchase.fee, // FIXME taxable?
+        /* purchaseCost = */ if taxable then firstPurchase.cost else BigDecimal(0),
+        /* purchaseiFee = */ if taxable then firstPurchase.fee else BigDecimal(0),
         /* taxableGain = */ BigDecimal(0)) // FIXME
     else
       // if a greater amount of the asset has been sold than purchased first, then continue processing the remaining ones
