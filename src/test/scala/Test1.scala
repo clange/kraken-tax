@@ -13,7 +13,7 @@ extends Purchase(
   fee  = 0  // irrelevant for this test
 )
 
-val dateLate = LocalDateTime.parse("9999-12-31 23:59:59.9999", dateTimeFormat)
+val dateLate = LocalDateTime.MAX
 
 def sellFIFOVolume(purchases: SeqMap[Temporal, Purchase], volume: BigDecimal): (SeqMap[Temporal, Purchase], BigDecimal, BigDecimal, BigDecimal) =
   sellFIFO(
