@@ -102,6 +102,7 @@ class State(
   /** Given the current state, process a transaction and return the new state */
   def process(tx: Transaction): State =
     // printf("on %s: %s %s %s at %s (%s + %s)\n", tx.time, tx.typ, tx.vol, tx.currency, tx.price, tx.cost, tx.fee)
+    // TODO check whether current time is not before previous transaction's time, and throw exception otherwise
     tx.typ match
       case TransactionType.buy =>
         newForCurrency(
@@ -109,6 +110,7 @@ class State(
           purchases =
             // the following defaults to the empty Map
             this.assets(tx.currency)
+            // append new purchase to the end of the list
             + (tx.time -> Purchase(tx.vol, tx.cost, tx.fee)),
           gain = 0,
           taxableGain = 0,
@@ -144,6 +146,7 @@ def sellFIFO(
      BigDecimal                 /* purchaseCost */,
      BigDecimal                 /* purchaseFee */,
      BigDecimal                 /* taxableGain */) =
+  // assume that the first (earliest) purchase is at the beginning of the list
   val (firstPurchaseTime, firstPurchase) = purchases.head
   val nextPurchases = purchases.tail
   // sell from the first (earliest) purchase:

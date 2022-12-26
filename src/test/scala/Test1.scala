@@ -24,6 +24,8 @@ def sellFIFOVolume(purchases: SeqMap[Temporal, Purchase], volume: BigDecimal): (
     cost           = 0         // irrelevant for this test
   )
 
+// TODO test whether Transaction.process is actually FIFO
+
 class Test1 extends AnyFunSpec with Matchers:
   val date1    = LocalDateTime.parse("2021-12-11 00:17:59.1546", dateTimeFormat)
   val date2    = LocalDateTime.parse("2021-12-20 05:57:51.4673", dateTimeFormat)
